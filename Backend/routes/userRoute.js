@@ -6,6 +6,7 @@ const {
     updateUser, 
     deleteUser 
 } = require("../controllers/userController");
+const authenticateUser = require("../utils/authenticateUser")
 
 const router = express.Router();
 
@@ -18,10 +19,10 @@ router.post("/login", loginUser);
 // User Logout
 router.post("/logout", logoutUser);
 
-// Update User Information
-router.put("/update", updateUser);
+// Update User Information, protected route with authenticateUser 
+router.put("/update",authenticateUser, updateUser);
 
-// Delete User Account
-router.delete("/delete", deleteUser);
+// Delete User Account, protected route with authenticateUser 
+router.delete("/delete", authenticateUser, deleteUser);
 
 module.exports = router;

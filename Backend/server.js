@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
     }
     // For other errors, log the stack trace and return a generic message
     console.error(err.stack);
-    res.status(500).json({ error: "An internal server error occurred." });
+    res.status(500).json({ error: "An internal server error occurred. This might be because of CORS policy." });
 });
 
 
