@@ -6,6 +6,8 @@ const bodyParser = require("body-parser");
 const logger = require("morgan");
 const helmet = require("helmet");
 const cors = require("cors");
+const path = require("path");
+
 
 // Import routes from the routes folder
 const userRoutes = require("./routes/userRoute");
@@ -27,19 +29,26 @@ dbConnect().then(() => {
 });
 
 // cors
-const whitelist = ["http://localhost:3000", process.env.FRONTEND_URL] // Array of allowed origins
+const whitelist = ["https://skjaerstein.com", process.env.FRONTEND_URL] // Array of allowed origins
 const corsOptions = {
     origin: (origin, callback) => {
-        if (whitelist.includes(origin) || !origin) {
+        if (!origin) {
+            // Explicitly block requests with no Origin header
+            console.error("CORS Error: Missing Origin header");
+            callback(new Error("Access denied. Missing Origin header."));
+        } else if (whitelist.includes(origin)) {
+            // Allow whitelisted origins
             callback(null, true);
         } else {
-            callback(new Error("Not allowed by CORS"));
+            // Block other origins
+            console.error(`CORS Error: Origin ${origin} not allowed`);
+            callback(new Error("Access denied. Origin not allowed by CORS."));
         }
     },
     credentials: true,
 };
 
-app.use(cors(corsOptions));
+
 
 // Routes
 app.get("/", (req, res) => {
@@ -47,7 +56,19 @@ app.get("/", (req, res) => {
 });
 
 // Template routes
-app.use("/api/users", userRoutes);
+app.use("/api/users", cors(corsOptions), userRoutes);
+
+// Simplified error to user
+app.use((err, req, res, next) => {
+    if (err.message.includes("CORS")) {
+        // Return simplified error for CORS
+        return res.status(403).json({ error: "Access denied by CORS policy." });
+    }
+    // For other errors, log the stack trace and return a generic message
+    console.error(err.stack);
+    res.status(500).json({ error: "An internal server error occurred." });
+});
+
 
 // Shutdown gracefully
 const gracefulShutdown = async () => {
