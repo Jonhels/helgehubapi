@@ -5,7 +5,10 @@ const {
     logoutUser, 
     updateUser, 
     deleteUser,
-    verifyEmail
+    verifyEmail,
+    requestPasswordReset,
+    resetPassword,
+    resetPasswordLimiter
 } = require("../controllers/userController");
 const authenticateUser = require("../utils/authenticateUser")
 
@@ -28,5 +31,9 @@ router.delete("/delete", authenticateUser, deleteUser);
 
 // Email verification route
 router.get("/verify-email", verifyEmail);
+
+// Password Recovery
+router.post("/password-reset-request",resetPasswordLimiter, requestPasswordReset);
+router.post("/reset-password", resetPassword);
 
 module.exports = router;

@@ -23,6 +23,9 @@ const userSchema = new mongoose.Schema({
         type: Boolean, 
         default: false 
     },
+    passwordChangedAt: { 
+        type: Date 
+    },
     // Timestamp for user creation
     timestamp: {
         type: Date,
