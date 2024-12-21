@@ -330,6 +330,25 @@ const resetPassword = async (req, res, next) => {
     }
 };
 
+const getProfile = async (req, res, next) => {
+    try {
+        const userId = req.user._id; // Extracted from the `authenticateUser` middleware
+        const user = await User.findById(userId).select("-password"); // Fetch user without the password
+
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+
+        res.status(200).json({
+            status: "success",
+            user, // Return the user's data
+        });
+    } catch (error) {
+        console.error("Error fetching profile:", error);
+        next(error);
+    }
+};
+
 
 module.exports = {
     registerUser,
@@ -340,5 +359,6 @@ module.exports = {
     verifyEmail,
     requestPasswordReset,
     resetPassword,
-    resetPasswordLimiter
+    resetPasswordLimiter,
+    getProfile
 };
