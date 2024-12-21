@@ -4,7 +4,8 @@ const {
     loginUser, 
     logoutUser, 
     updateUser, 
-    deleteUser 
+    deleteUser,
+    verifyEmail
 } = require("../controllers/userController");
 const authenticateUser = require("../utils/authenticateUser")
 
@@ -24,5 +25,8 @@ router.put("/update",authenticateUser, updateUser);
 
 // Delete User Account, protected route with authenticateUser 
 router.delete("/delete", authenticateUser, deleteUser);
+
+// Email verification route
+router.get("/verify-email", verifyEmail);
 
 module.exports = router;

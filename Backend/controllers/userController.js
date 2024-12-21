@@ -3,6 +3,7 @@ const User = require("../models/userSchema");
 const createError = require("../utils/createError");
 const {hashPassword, comparePassword} = require("../utils/hashPassword");
 const validator = require("validator");
+const emailjs = require("emailjs-com");
 
 const validateStrongPassword = (password) => {
     return validator.isStrongPassword(password, {
@@ -12,6 +13,34 @@ const validateStrongPassword = (password) => {
         minNumbers: 1,
         minSymbols: 1,
     });
+};
+
+const sendVerificationEmail = async (user) => {
+    const verificationToken = jwt.sign(
+        {id: user._id, email: user.email},
+        process.env.JWT_SECRET,
+        {expiresIn: "1d"} // 1 day
+    );
+
+    const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    const emailParams = {
+        email: user.email, // dynamic {{email}} placeholder in EmailJs template
+        verification_link: verificationLink // Dynamic {{vertification_link}} link placeholder
+    };
+
+    try {
+        await emailjs.send(
+            process.env.EMAILJS_SERVICE_ID,
+            process.env.EMAILJS_TEMPLATE_ID,
+            emailParams,
+            process.env.EMAILJS_PUBLIC_KEY
+        );
+        console.log("Verification email sent successfully");
+    } catch(error) {
+        console.error("Error sending verification email:", error);
+        throw new Error("Failed to send verification email");
+    }
 };
 
 const registerUser = async(req, res, next) => {
@@ -42,14 +71,17 @@ const registerUser = async(req, res, next) => {
             name,
             email,
             password: hashedPassword,
+            isVerified: false,
         });
+
+        await sendVerificationEmail(newUser);
 
         const userForResponse = {...newUser._doc};
         delete userForResponse.password;
 
         res.status(201).json({
             status: "success",
-            messsage: "User registred successfully",
+            messsage: "User registred successfully. Please check your email to verify your account.",
             user: userForResponse,
         })
     } catch(error) {
@@ -180,10 +212,46 @@ const deleteUser = async (req, res, next) => {
     }
 }
 
+const verifyEmail = async (req, res) => {
+    const { token } = req.query;
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const user = await User.findById(decoded.id);
+
+        if (!user) {
+            return res.status(400).json({ error: "Invalid token or user does not exist." });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({ error: "Email already verified. Please log in." });
+        }
+
+        user.isVerified = true; // Mark user as verified
+        await user.save();
+
+        res.cookie("token", "", {
+            httpOnly: true,
+            expires: new Date(0),
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "Strict",
+        });
+
+        res.status(200).json({
+            status: "success",
+            message: "Email verified successfully. You can now log in.",
+        });
+    } catch (error) {
+        res.status(400).json({ error: "Invalid or expired token." });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
     logoutUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    verifyEmail
 };

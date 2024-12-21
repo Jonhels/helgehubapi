@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
         required: [true, "Please enter your password"],
         minlength: [6, "Minimum password lenth is 6 characters"],
     },
+    isVerified: { 
+        type: Boolean, 
+        default: false 
+    },
     // Timestamp for user creation
     timestamp: {
         type: Date,
