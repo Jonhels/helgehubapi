@@ -3,8 +3,14 @@ const User = require("../models/userSchema");
 const createError = require("../utils/createError");
 const {hashPassword, comparePassword} = require("../utils/hashPassword");
 const validator = require("validator");
-const emailjs = require("emailjs-com");
 const rateLimit = require("express-rate-limit");
+
+let SMTPClient;
+(async () => {
+    const emailjs = await import("emailjs");
+    SMTPClient = emailjs.SMTPClient;
+})();
+
 
 const validateStrongPassword = (password) => {
     return validator.isStrongPassword(password, {
@@ -16,33 +22,42 @@ const validateStrongPassword = (password) => {
     });
 };
 
+
+
 const sendVerificationEmail = async (user) => {
     const verificationToken = jwt.sign(
-        {id: user._id, email: user.email},
+        { id: user._id, email: user.email },
         process.env.JWT_SECRET,
-        {expiresIn: "1d"} // 1 day
+        { expiresIn: "1d" } // Token valid for 1 day
     );
 
     const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-    const emailParams = {
-        email: user.email, // dynamic {{email}} placeholder in EmailJs template
-        verification_link: verificationLink // Dynamic {{vertification_link}} link placeholder
-    };
+    const client = new SMTPClient({
+        user: process.env.EMAILJS_USER,
+        password: process.env.EMAILJS_PASSWORD,
+        host: process.env.EMAILJS_HOST,
+        ssl: true, // Use SSL (Port 465)
+        port: process.env.EMAILJS_PORT || 465,
+    });
 
     try {
-        await emailjs.send(
-            process.env.EMAILJS_SERVICE_ID,
-            process.env.EMAILJS_TEMPLATE_ID,
-            emailParams,
-            process.env.EMAILJS_PUBLIC_KEY
-        );
+        await client.sendAsync({
+            text: `Click the following link to verify your email: ${verificationLink}`,
+            from: process.env.EMAILJS_FROM,
+            to: user.email,
+            subject: "Verify Your Email",
+            attachment: [
+                { data: `<p>Click <a href="${verificationLink}">here</a> to verify your email.</p>`, alternative: true },
+            ],
+        });
         console.log("Verification email sent successfully");
-    } catch(error) {
+    } catch (error) {
         console.error("Error sending verification email:", error);
         throw new Error("Failed to send verification email");
     }
 };
+
 
 const resetPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -255,12 +270,12 @@ const verifyEmail = async (req, res) => {
 };
 
 const requestPasswordReset = async (req, res, next) => {
-    const {email} = req.body;
+    const { email } = req.body;
 
     try {
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(404).json({error: "User with this email does not exist"});
+            return res.status(404).json({ error: "User with this email does not exist." });
         }
 
         const resetToken = jwt.sign(
@@ -271,17 +286,22 @@ const requestPasswordReset = async (req, res, next) => {
 
         const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-        const emailParams = {
-            email: user.email, // Dynamic {{email}} placeholder in EmailJS template
-            reset_link: resetLink, // Dynamic {{reset_link}} placeholder
-        };
+        const client = new SMTPClient({
+            user: process.env.EMAILJS_USER,
+            password: process.env.EMAILJS_PASSWORD,
+            host: process.env.EMAILJS_HOST,
+            ssl: true,
+        });
 
-        await emailjs.send(
-            process.env.EMAILJS_SERVICE_ID,
-            process.env.EMAILJS_RESET_TEMPLATE_ID,
-            emailParams,
-            process.env.EMAILJS_PUBLIC_KEY
-        );
+        await client.sendAsync({
+            text: `Reset your password by clicking the link: ${resetLink}`, // Plain text content
+            from: process.env.EMAILJS_FROM,
+            to: user.email,
+            subject: "Reset Your Password",
+            attachment: [
+                { data: `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`, alternative: true }, // HTML content
+            ],
+        });
 
         res.status(200).json({
             status: "success",
@@ -292,6 +312,7 @@ const requestPasswordReset = async (req, res, next) => {
         next(error);
     }
 };
+
 
 const resetPassword = async (req, res, next) => {
     const { token } = req.query; // Token from the reset link
