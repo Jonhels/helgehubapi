@@ -7,7 +7,7 @@ const logger = require("morgan");
 const helmet = require("helmet");
 const cors = require("cors");
 const path = require("path");
-
+const cookieParser = require("cookie-parser");
 
 // Import routes from the routes folder
 const userRoutes = require("./routes/userRoute");
@@ -16,6 +16,7 @@ const userRoutes = require("./routes/userRoute");
 const app = express(); // Create an express app
 app.use(logger("tiny")); // Log http request to the console
 app.use(helmet()); // Secure the app through different HTTP headers
+app.use(cookieParser());
 
 // Parse incoming requests to JSON
 app.use(bodyParser.json());
@@ -29,7 +30,7 @@ dbConnect().then(() => {
 });
 
 // cors
-const whitelist = ["https://skjaerstein.com", process.env.FRONTEND_URL] // Array of allowed origins
+const whitelist = ["https://skjaerstein.com", "http://localhost:5173", process.env.FRONTEND_URL] // Array of allowed origins
 const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) {
@@ -58,16 +59,35 @@ app.get("/", (req, res) => {
 // Template routes
 app.use("/api/users", cors(corsOptions), userRoutes);
 
-// Simplified error to user
+// Error-handling middleware
 app.use((err, req, res, next) => {
     if (err.message.includes("CORS")) {
-        // Return simplified error for CORS
+        // Handle CORS errors
         return res.status(403).json({ error: "Access denied by CORS policy." });
     }
-    // For other errors, log the stack trace and return a generic message
-    console.error(err.stack);
-    res.status(500).json({ error: "An internal server error occurred. This might be because of CORS policy." });
+
+    if (err.name === "ValidationError") {
+        // Handle validation errors
+        return res.status(400).json({ error: err.message });
+    }
+
+    if (err.name === "AuthenticationError") {
+        // Handle authentication errors
+        return res.status(401).json({ error: err.message });
+    }
+
+    if (err.message) {
+        // For other known errors, use the message
+        return res.status(400).json({ error: err.message });
+    }
+
+    // Log the stack trace for unexpected errors
+    console.error("Unhandled Error:", err.stack);
+
+    // Send a generic error response for unexpected errors
+    res.status(500).json({ error: "An internal server error occurred." });
 });
+
 
 
 // Shutdown gracefully
